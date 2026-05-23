@@ -66,7 +66,7 @@ pyinstaller stcli.spec
 
 ## 配置文件
 
-配置存储在 `~/.stcli/` 目录下：
+配置存储在 `~/.stcli/` 目录下（Windows: `C:\Users\用户名\.stcli\`）：
 
 ```
 ~/.stcli/
