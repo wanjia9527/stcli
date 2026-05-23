@@ -1,0 +1,291 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>stcli</title>
+  <link rel="stylesheet" href="/css/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+</head>
+<body>
+  <div class="app">
+    <div class="app-main">
+      <!-- Sidebar -->
+      <nav class="sidebar">
+        <div class="sidebar-brand">stcli</div>
+        <a class="nav-item active" data-view="upload" onclick="switchView('upload')">
+          <span class="nav-icon" id="nav-icon-upload"></span> 上传
+        </a>
+        <a class="nav-item" data-view="files" onclick="switchView('files')">
+          <span class="nav-icon" id="nav-icon-files"></span> 文件
+        </a>
+        <a class="nav-item" data-view="collections" onclick="switchView('collections')">
+          <span class="nav-icon" id="nav-icon-collections"></span> 合集
+        </a>
+        <a class="nav-item" data-view="keepalive" onclick="switchView('keepalive')">
+          <span class="nav-icon" id="nav-icon-keepalive"></span> 续命
+        </a>
+        <a class="nav-item" data-view="settings" onclick="switchView('settings')">
+          <span class="nav-icon" id="nav-icon-settings"></span> 设置
+        </a>
+      </nav>
+
+      <!-- Main content -->
+      <main class="content">
+        <!-- Upload view -->
+        <section id="view-upload" class="view active">
+          <h2>上传文件</h2>
+          <div id="upload-dropzone" class="dropzone">
+            <div class="dropzone-icon" id="dropzone-icon"></div>
+            <p><label for="upload-input" class="link">点击选择文件</label></p>
+            <input type="file" id="upload-input" multiple hidden>
+          </div>
+          <div id="upload-queue"></div>
+          <div id="upload-actions" class="hidden">
+            <button onclick="startUpload()" class="btn btn-primary">开始上传</button>
+            <button onclick="clearQueue()" class="btn">清空队列</button>
+          </div>
+          <div id="upload-progress-global" class="hidden">
+            <div class="progress-bar"><div id="global-progress-fill" class="progress-fill"></div></div>
+            <span id="global-progress-text">0/0 · 0%</span>
+          </div>
+        </section>
+
+        <!-- Files view -->
+        <section id="view-files" class="view">
+          <div class="view-header">
+            <h2>文件管理</h2>
+            <div class="view-actions">
+              <button onclick="toggleFileView()" class="btn btn-sm" id="file-view-toggle">切换卡片</button>
+              <button onclick="refreshFiles()" class="btn btn-sm btn-icon" id="files-refresh-btn"></button>
+            </div>
+          </div>
+          <div class="search-box">
+            <span class="search-icon" id="files-search-icon"></span>
+            <input type="text" id="file-search" placeholder="搜索文件..." oninput="searchFiles()">
+          </div>
+          <div id="file-list"></div>
+          <div id="file-batch-bar" class="hidden batch-bar">
+            <span id="file-selected-count">已选 0 个</span>
+            <button onclick="batchDownload()" class="btn btn-sm">批量下载</button>
+            <button onclick="batchCopyDlLinks()" class="btn btn-sm">批量复制直链</button>
+            <button onclick="batchCopyLinks()" class="btn btn-sm">复制链接</button>
+            <button onclick="batchSetExpiry()" class="btn btn-sm">批量修改过期</button>
+            <button onclick="batchSetPassword()" class="btn btn-sm">批量设置密码</button>
+            <button onclick="batchAddToKeepalive()" class="btn btn-sm">加入守护</button>
+            <button onclick="batchDeleteFiles()" class="btn btn-sm btn-danger" id="batch-delete-btn">删除</button>
+          </div>
+        </section>
+
+        <!-- Collections view -->
+        <section id="view-collections" class="view">
+          <div class="view-header">
+            <h2>合集管理</h2>
+            <div class="view-actions">
+              <button onclick="refreshCollections()" class="btn btn-sm btn-icon" id="coll-refresh-btn"></button>
+              <button onclick="showCreateCollection()" class="btn btn-primary btn-sm" id="coll-create-btn"></button>
+            </div>
+          </div>
+          <div id="collection-list" class="card-grid"></div>
+        </section>
+
+        <!-- Keepalive view -->
+        <section id="view-keepalive" class="view">
+          <div class="view-header">
+            <h2>续命守护</h2>
+            <div class="view-actions">
+              <span id="ka-status-dot" class="status-dot stopped"></span>
+              <span id="ka-status-text">未启动</span>
+              <button onclick="keepaliveStart()" class="btn btn-sm" id="ka-start-btn">启动守护</button>
+              <button onclick="keepaliveStop()" class="btn btn-sm" id="ka-stop-btn" disabled>停止守护</button>
+              <button onclick="keepaliveCheckNow()" class="btn btn-sm" id="ka-check-btn" disabled>立即检查</button>
+              <button onclick="showAddKeepalive()" class="btn btn-primary btn-sm" id="ka-add-btn"></button>
+            </div>
+          </div>
+          <table class="data-table" id="ka-table">
+            <thead>
+              <tr>
+                <th>文件名</th><th>大小</th><th>过期时间</th>
+                <th>剩余天数</th><th>续命目标</th><th>状态</th><th>操作</th>
+              </tr>
+            </thead>
+            <tbody id="ka-tbody"></tbody>
+          </table>
+          <div class="log-panel">
+            <div class="log-header">
+              <span>守护日志</span>
+              <span class="text-muted">自动滚动</span>
+            </div>
+            <div id="ka-log" class="log-body"></div>
+          </div>
+        </section>
+
+        <!-- Settings view -->
+        <section id="view-settings" class="view">
+          <h2>设置</h2>
+          <div class="settings-group">
+            <h3 id="settings-auth-title"></h3>
+            <div class="auth-cards">
+              <div class="auth-card active" onclick="switchAuth('anonymous')" id="auth-anonymous">
+                <div class="auth-icon" id="auth-icon-anonymous"></div>
+                <div>匿名</div>
+              </div>
+              <div class="auth-card" onclick="switchAuth('token')" id="auth-token">
+                <div class="auth-icon" id="auth-icon-token"></div>
+                <div>账号令牌</div>
+              </div>
+            </div>
+            <div id="token-input-area" class="hidden">
+              <input type="password" id="bearer-token-input" placeholder="Bearer Token（从 storage.to 网站获取）">
+              <button onclick="toggleTokenVisibility()" class="btn btn-sm btn-icon" id="token-eye-btn"></button>
+              <button onclick="verifyToken()" class="btn btn-primary btn-sm">验证</button>
+              <div id="token-verify-result"></div>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <h3 id="settings-filemode-title"></h3>
+            <div class="option-cards">
+              <div class="option-card active" data-file-mode="merge" id="filemode-merge">
+                <div>合并显示</div>
+                <div class="text-muted">同时显示本地和云端文件</div>
+              </div>
+              <div class="option-card" data-file-mode="local" id="filemode-local">
+                <div>仅本地</div>
+                <div class="text-muted">只显示匿名模式文件</div>
+              </div>
+              <div class="option-card" data-file-mode="cloud" id="filemode-cloud">
+                <div>仅云端</div>
+                <div class="text-muted">只显示账号文件</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <h3 id="settings-quota-title"></h3>
+            <div class="quota-cards">
+              <div class="quota-card"><div class="quota-value" id="q-limit">-</div><div class="quota-label">每日限额 (GB)</div></div>
+              <div class="quota-card"><div class="quota-value" id="q-used">-</div><div class="quota-label">已用 (GB)</div></div>
+              <div class="quota-card"><div class="quota-value" id="q-remaining">-</div><div class="quota-label">剩余 (GB)</div></div>
+            </div>
+            <div class="progress-bar"><div id="quota-progress-fill" class="progress-fill"></div></div>
+            <button onclick="refreshQuota()" class="btn btn-sm btn-icon" id="quota-refresh-btn"></button>
+          </div>
+
+          <div class="settings-group">
+            <h3 id="settings-download-title"></h3>
+            <div class="option-cards">
+              <div class="option-card active" onclick="switchDownload('browser')" id="dl-browser">
+                <div>浏览器下载</div>
+                <div class="text-muted">直接打开浏览器下载</div>
+              </div>
+              <div class="option-card" onclick="switchDownload('idm')" id="dl-idm">
+                <div>IDM</div>
+                <div class="text-muted">调用 Internet Download Manager</div>
+              </div>
+            </div>
+            <div id="idm-path-area" class="hidden">
+              <input type="text" id="idm-path-input" placeholder="IDM 路径" readonly>
+              <button onclick="detectIdm()" class="btn btn-sm">自动检测</button>
+              <button onclick="browseIdm()" class="btn btn-sm" id="idm-browse-btn"></button>
+            </div>
+          </div>
+
+          <div class="settings-group">
+            <h3 id="settings-params-title"></h3>
+            <div class="param-grid">
+              <div class="param-item">
+                <label>默认过期天数</label>
+                <input type="number" id="set-expiry-days" min="1" max="7" value="3">
+                <span class="text-muted">范围: 1-7 天</span>
+              </div>
+              <div class="param-item">
+                <label>续命目标天数</label>
+                <input type="number" id="set-ka-days" min="1" max="7" value="7">
+                <span class="text-muted">范围: 1-7 天</span>
+              </div>
+              <div class="param-item">
+                <label>续命触发阈值</label>
+                <input type="number" id="set-ka-threshold" min="1" max="3" value="2">
+                <span class="text-muted">剩余 ≤ 此天数时续命</span>
+              </div>
+              <div class="param-item">
+                <label>检测间隔（分钟）</label>
+                <input type="number" id="set-ka-interval" min="1" max="1440" value="60">
+                <span class="text-muted">范围: 1-1440 分钟</span>
+              </div>
+              <div class="param-item">
+                <label>开机自动启动守护</label>
+                <div style="display:flex;align-items:center;gap:8px;margin-top:4px">
+                  <input type="checkbox" id="set-ka-autostart" style="width:16px;height:16px">
+                  <span class="text-muted">启动 stcli 时自动开启守护</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <div class="settings-actions">
+            <button onclick="resetSettings()" class="btn">重置默认</button>
+            <button onclick="saveSettings()" class="btn btn-primary btn-icon" id="save-settings-btn"></button>
+          </div>
+        </section>
+      </main>
+    </div>
+
+    <!-- Status bar -->
+    <footer class="status-bar">
+      <span id="status-auth">离线</span>
+      <span id="status-quota"></span>
+    </footer>
+  </div>
+
+  <!-- Toast container -->
+  <div id="toast-container"></div>
+
+  <!-- Modal -->
+  <div id="modal-overlay" class="modal-overlay hidden" onclick="closeModal()">
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <span id="modal-title"></span>
+        <button onclick="closeModal()" class="modal-close">&times;</button>
+      </div>
+      <div id="modal-body" class="modal-body"></div>
+    </div>
+  </div>
+
+  <script src="/js/app.js"></script>
+  <script src="/js/settings.js"></script>
+  <script src="/js/files.js"></script>
+  <script src="/js/upload.js"></script>
+  <script src="/js/collections.js"></script>
+  <script src="/js/keepalive.js"></script>
+
+  <!-- Inject SVG icons into HTML placeholders -->
+  <script>
+    document.getElementById('nav-icon-upload').innerHTML = iconUpload();
+    document.getElementById('nav-icon-files').innerHTML = iconFile();
+    document.getElementById('nav-icon-collections').innerHTML = iconFolder();
+    document.getElementById('nav-icon-keepalive').innerHTML = iconClock();
+    document.getElementById('nav-icon-settings').innerHTML = iconSettings();
+    document.getElementById('dropzone-icon').innerHTML = iconUpload();
+    document.getElementById('files-refresh-btn').innerHTML = iconRefresh();
+    document.getElementById('files-search-icon').innerHTML = iconSearch();
+    document.getElementById('coll-refresh-btn').innerHTML = iconRefresh();
+    document.getElementById('coll-create-btn').innerHTML = iconPlus() + ' 新建合集';
+    document.getElementById('ka-add-btn').innerHTML = iconPlus() + ' 添加文件';
+    document.getElementById('settings-auth-title').innerHTML = iconShield() + ' 认证方式';
+    document.getElementById('auth-icon-anonymous').innerHTML = iconUser();
+    document.getElementById('auth-icon-token').innerHTML = iconKey();
+    document.getElementById('token-eye-btn').innerHTML = iconEye();
+    document.getElementById('settings-filemode-title').innerHTML = iconFolder() + ' 文件显示模式';
+    document.getElementById('settings-quota-title').innerHTML = iconBarChart() + ' 每日带宽';
+    document.getElementById('quota-refresh-btn').innerHTML = iconRefresh();
+    document.getElementById('settings-download-title').innerHTML = iconDownload() + ' 下载方式';
+    document.getElementById('idm-browse-btn').innerHTML = iconFile() + ' 浏览';
+    document.getElementById('settings-params-title').innerHTML = iconSettings() + ' 默认参数';
+    document.getElementById('save-settings-btn').innerHTML = iconSave() + ' 保存设置';
+  </script>
+</body>
+</html>
