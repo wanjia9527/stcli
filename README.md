@@ -18,7 +18,11 @@ storage.to 桌面客户端 — 文件上传、管理、续命一站式工具。
 
 ## 截图
 
-> TODO: 添加截图
+### 文件管理
+![文件管理](docs/images/screenshot-files.png)
+
+### 续命守护
+![续命守护](docs/images/screenshot-keepalive.png)
 
 ## 安装
 
